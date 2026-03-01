@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Discogs Collection Viewer — Better Sorting & Filtering</title>
+<meta name="description" content="Browse your Discogs vinyl & CD collection with working sorting, filtering, and search. Free, no login required.">
+<meta property="og:title" content="Discogs Collection Viewer — Better Sorting & Filtering">
+<meta property="og:description" content="The Discogs app is broken. This actually works. Sort, filter, and search your collection.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Discogs Collection Viewer","description":"Browse your Discogs collection with working sorting, filtering, and search.","applicationCategory":"EntertainmentApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}
+</script>
+<style>
+:root{--bg:#111;--card:#1a1a1a;--primary:#ff5500;--primary-dark:#cc4400;--text:#e5e5e5;--muted:#888;--border:#333;--radius:12px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;padding:24px 16px}
+header{text-align:center;margin-bottom:24px}
+h1{font-size:28px;font-weight:800}
+h1 span{color:var(--primary)}
+.subtitle{color:var(--muted);font-size:14px;margin-top:4px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+
+/* Search bar */
+.search-row{display:flex;gap:10px;margin-bottom:16px}
+.search-row input{flex:1;padding:12px 16px;background:#222;border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px}
+.search-row input:focus{outline:none;border-color:var(--primary)}
+.search-row button{padding:12px 24px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:15px;white-space:nowrap}
+.search-row button:hover{background:var(--primary-dark)}
+.search-row button:disabled{opacity:.5;cursor:not-allowed}
+
+/* Controls */
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+.controls select,.controls input{padding:8px 12px;background:#222;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px}
+.controls label{font-size:12px;color:var(--muted);font-weight:600}
+.control-group{display:flex;flex-direction:column;gap:4px}
+.stats{color:var(--muted);font-size:13px;margin-left:auto}
+.view-toggle{display:flex;gap:4px}
+.view-toggle button{padding:6px 10px;background:#222;border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-size:16px}
+.view-toggle button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* Grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.grid-item{background:#222;border-radius:10px;overflow:hidden;cursor:pointer;transition:transform .15s}
+.grid-item:hover{transform:translateY(-2px)}
+.grid-item img{width:100%;aspect-ratio:1;object-fit:cover;background:#333}
+.grid-item .info{padding:10px}
+.grid-item .title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid-item .artist{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid-item .year{font-size:11px;color:var(--primary)}
+
+/* List */
+.list{display:none}
+.list-item{display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid var(--border)}
+.list-item img{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#333}
+.list-item .title{font-weight:600;font-size:14px}
+.list-item .artist{color:var(--muted);font-size:13px}
+.list-item .meta{margin-left:auto;text-align:right;font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* Loading & empty */
+.loading{text-align:center;padding:48px;color:var(--muted)}
+.loading .spinner{display:inline-block;width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:48px;color:var(--muted)}
+.progress-bar{height:4px;background:var(--border);border-radius:2px;margin-top:12px;overflow:hidden}
+.progress-fill{height:100%;background:var(--primary);transition:width .3s;width:0}
+
+footer{text-align:center;padding:32px 0;color:#555;font-size:12px}
+footer a{color:var(--primary)}
+
+@media(max-width:600px){
+  .controls{flex-direction:column;align-items:stretch}
+  .stats{margin-left:0;margin-top:8px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+  .search-row{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>🎵 <span>Discogs</span> Collection Viewer</h1>
+    <p class="subtitle">The app is broken. This actually works. Enter your Discogs username below.</p>
+  </header>
+
+  <div class="card">
+    <div class="search-row">
+      <input type="text" id="username" placeholder="Your Discogs username" autocomplete="off">
+      <button id="loadBtn">Load Collection</button>
+    </div>
+    <div class="search-row" style="display:none" id="filterRow">
+      <input type="text" id="searchBox" placeholder="Search your collection...">
+    </div>
+  </div>
+
+  <div id="controlsWrap" style="display:none">
+    <div class="controls">
+      <div class="control-group">
+        <label>Sort by</label>
+        <select id="sortBy">
+          <option value="artist">Artist A-Z</option>
+          <option value="artist-desc">Artist Z-A</option>
+          <option value="title">Title A-Z</option>
+          <option value="title-desc">Title Z-A</option>
+          <option value="year">Year ↑</option>
+          <option value="year-desc">Year ↓</option>
+          <option value="added">Date Added ↑</option>
+          <option value="added-desc" selected>Date Added ↓</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Format</label>
+        <select id="filterFormat">
+          <option value="">All</option>
+          <option value="Vinyl">Vinyl</option>
+          <option value="CD">CD</option>
+          <option value="Cassette">Cassette</option>
+          <option value="Box Set">Box Set</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Year from</label>
+        <input type="number" id="yearFrom" placeholder="1950" style="width:80px">
+      </div>
+      <div class="control-group">
+        <label>Year to</label>
+        <input type="number" id="yearTo" placeholder="2026" style="width:80px">
+      </div>
+      <div class="view-toggle">
+        <button id="gridView" class="active" title="Grid">▦</button>
+        <button id="listView" title="List">☰</button>
+      </div>
+      <span class="stats" id="stats"></span>
+    </div>
+  </div>
+
+  <div id="loadingArea"></div>
+  <div class="grid" id="grid"></div>
+  <div class="list" id="list"></div>
+
+  <footer>
+    <p>Not affiliated with Discogs. Data from the <a href="https://www.discogs.com/developers" target="_blank">Discogs API</a>.</p>
+    <p style="margin-top:4px"><a href="https://github.com/purplefbihaze-cpu/discogs-viewer" target="_blank">View Source on GitHub</a></p>
+  </footer>
+</div>
+
+<script>
+const API = 'https://api.discogs.com';
+const UA = 'DiscogsViewer/1.0';
+let allReleases = [];
+let viewMode = 'grid';
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+$('#loadBtn').addEventListener('click', loadCollection);
+$('#username').addEventListener('keydown', e => { if (e.key === 'Enter') loadCollection(); });
+$('#sortBy').addEventListener('change', renderFiltered);
+$('#filterFormat').addEventListener('change', renderFiltered);
+$('#yearFrom').addEventListener('input', renderFiltered);
+$('#yearTo').addEventListener('input', renderFiltered);
+$('#searchBox').addEventListener('input', renderFiltered);
+$('#gridView').addEventListener('click', () => setView('grid'));
+$('#listView').addEventListener('click', () => setView('list'));
+
+function setView(mode) {
+  viewMode = mode;
+  $('#gridView').classList.toggle('active', mode === 'grid');
+  $('#listView').classList.toggle('active', mode === 'list');
+  $('#grid').style.display = mode === 'grid' ? 'grid' : 'none';
+  $('#list').style.display = mode === 'list' ? 'block' : 'none';
+  renderFiltered();
+}
+
+async function loadCollection() {
+  const username = $('#username').value.trim();
+  if (!username) return;
+  const btn = $('#loadBtn');
+  btn.disabled = true; btn.textContent = 'Loading...';
+  allReleases = [];
+  $('#loadingArea').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading collection...</p><div class="progress-bar"><div class="progress-fill" id="progFill"></div></div><p id="progText" style="margin-top:8px;font-size:12px"></p></div>';
+
+  try {
+    let page = 1, pages = 1;
+    while (page <= pages) {
+      const res = await fetch(`${API}/users/${username}/collection/folders/0/releases?per_page=100&page=${page}&sort=added&sort_order=desc`, {
+        headers: { 'User-Agent': UA }
+      });
+      if (!res.ok) throw new Error(res.status === 404 ? 'User not found or collection is private' : `API error: ${res.status}`);
+      const data = await res.json();
+      pages = data.pagination.pages;
+      const total = data.pagination.items;
+      for (const r of data.releases) {
+        const b = r.basic_information;
+        allReleases.push({
+          title: b.title,
+          artist: b.artists.map(a => a.name).join(', '),
+          year: b.year,
+          formats: b.formats.map(f => f.name),
+          genres: b.genres || [],
+          styles: b.styles || [],
+          thumb: b.thumb || b.cover_image || '',
+          added: r.date_added || '',
+          id: r.id
+        });
+      }
+      const pct = Math.round((allReleases.length / total) * 100);
+      const pf = document.getElementById('progFill');
+      const pt = document.getElementById('progText');
+      if (pf) pf.style.width = pct + '%';
+      if (pt) pt.textContent = `${allReleases.length} / ${total} releases`;
+      page++;
+      if (page <= pages) await new Promise(r => setTimeout(r, 1200)); // rate limit
+    }
+    $('#loadingArea').innerHTML = '';
+    $('#filterRow').style.display = 'flex';
+    $('#controlsWrap').style.display = 'block';
+    renderFiltered();
+  } catch (err) {
+    $('#loadingArea').innerHTML = `<div class="empty">❌ ${err.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = 'Load Collection';
+}
+
+function getFiltered() {
+  const search = $('#searchBox').value.toLowerCase();
+  const format = $('#filterFormat').value;
+  const yFrom = parseInt($('#yearFrom').value) || 0;
+  const yTo = parseInt($('#yearTo').value) || 9999;
+  const sortKey = $('#sortBy').value;
+
+  let items = allReleases.filter(r => {
+    if (format && !r.formats.some(f => f.toLowerCase().includes(format.toLowerCase()))) return false;
+    if (r.year && (r.year < yFrom || r.year > yTo)) return false;
+    if (search) {
+      const hay = (r.title + ' ' + r.artist + ' ' + r.genres.join(' ') + ' ' + r.styles.join(' ')).toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const [key, dir] = sortKey.includes('-desc') ? [sortKey.replace('-desc',''), 'desc'] : [sortKey, 'asc'];
+  items.sort((a, b) => {
+    let va, vb;
+    if (key === 'artist') { va = a.artist.toLowerCase(); vb = b.artist.toLowerCase(); }
+    else if (key === 'title') { va = a.title.toLowerCase(); vb = b.title.toLowerCase(); }
+    else if (key === 'year') { va = a.year || 0; vb = b.year || 0; }
+    else if (key === 'added') { va = a.added; vb = b.added; }
+    else { va = a.title; vb = b.title; }
+    if (va < vb) return dir === 'asc' ? -1 : 1;
+    if (va > vb) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+  return items;
+}
+
+function renderFiltered() {
+  const items = getFiltered();
+  $('#stats').textContent = `${items.length} / ${allReleases.length} releases`;
+
+  if (viewMode === 'grid') {
+    $('#grid').innerHTML = items.map(r => `
+      <div class="grid-item" title="${esc(r.artist)} — ${esc(r.title)} (${r.year || '?'})">
+        <img src="${r.thumb || ''}" alt="" loading="lazy" onerror="this.style.background='#333';this.src=''">
+        <div class="info">
+          <div class="title">${esc(r.title)}</div>
+          <div class="artist">${esc(r.artist)}</div>
+          <div class="year">${r.year || '?'} · ${r.formats[0] || '?'}</div>
+        </div>
+      </div>
+    `).join('');
+  } else {
+    $('#list').innerHTML = items.map(r => `
+      <div class="list-item">
+        <img src="${r.thumb || ''}" alt="" loading="lazy" onerror="this.style.background='#333';this.src=''">
+        <div>
+          <div class="title">${esc(r.title)}</div>
+          <div class="artist">${esc(r.artist)}</div>
+        </div>
+        <div class="meta">${r.year || '?'}<br>${r.formats[0] || '?'}</div>
+      </div>
+    `).join('');
+  }
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>

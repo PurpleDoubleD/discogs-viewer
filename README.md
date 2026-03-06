@@ -31,3 +31,5 @@ Enter your Discogs username. The app fetches your public collection via the [Dis
 ## License
 
 MIT
+
+- [QR Code Generator](https://purpledoubled.github.io/qr-code-generator/) — Generate QR codes privately in your browser
